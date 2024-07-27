@@ -1,7 +1,17 @@
 import os
-from datetime import datetime
-from fpdf import FPDF, XPos, YPos
+import argparse
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
+from utils import (
+    read_reference_number,
+    write_reference_number,
+    get_customer_number,
+    update_customer_number,
+    read_last_customer_number,
+    generate_finnish_reference_number,
+)
+from validation import validate_finnish_reference_number
+from create_invoice import PDF
 
 # Load environment variables from .env file
 load_dotenv()
@@ -21,42 +31,36 @@ if not all([seller_name, seller_address_line1, seller_address_line2, seller_coun
     print("Error: All seller information must be provided in the environment variables.")
     exit(1)
 
-# Function to read the current reference number from a file
-def read_reference_number(file_path):
-    if not os.path.exists(file_path):
-        return 10
-    with open(file_path, 'r') as file:
-        return int(file.read().strip())
-
-# Function to write the new reference number to a file
-def write_reference_number(file_path, ref_number):
-    with open(file_path, 'w') as file:
-        file.write(str(ref_number))
-
-# Function to wrap text in a cell
-def wrap_text(pdf, text, max_width):
-    lines = []
-    words = text.split()
-    line = ""
-    for word in words:
-        if pdf.get_string_width(line + word + " ") <= max_width:
-            line += word + " "
-        else:
-            lines.append(line)
-            line = word + " "
-    lines.append(line)
-    return lines
-
-# File to store the reference number
+# File paths
 ref_file = 'reference_number.txt'
+customer_file = 'customer_number.csv'
+
+# Setup argparse to handle inline arguments
+parser = argparse.ArgumentParser(description='Generate an invoice.')
+parser.add_argument('--skip_gen_cus_num', action='store_true', default=False, help='Skip generating a new customer number.')
+parser.add_argument('--skip_gen_ref_num', action='store_true', default=False, help='Skip generating a new reference number.')
+args = parser.parse_args()
 
 # Prompting the user for input
 customer_name = input("Enter customer name: ").strip()
+customer_email = input("Enter customer email: ").strip()
 customer_street_address = input("Enter customer street address: ").strip()
 customer_postcode_city = input("Enter customer postcode and city: ").strip()
-if not customer_name or not customer_street_address or not customer_postcode_city:
-    print("Error: All address fields (customer name, street address, and postcode/city) are required.")
+if not customer_name or not customer_email or not customer_street_address or not customer_postcode_city:
+    print("Error: All address fields (customer name, customer email, street address, and postcode/city) are required.")
     exit(1)
+
+# Get or generate customer number
+if args.skip_gen_cus_num:
+    customer_number = input("Enter customer number (at least 3 digits): ").strip()
+    if not customer_number.isdigit() or len(customer_number) < 3:
+        print("Error: Customer number must be at least 3 digits.")
+        exit(1)
+else:
+    customer_number = get_customer_number(customer_file, customer_email)
+    if customer_number is None:
+        customer_number = read_last_customer_number(customer_file) + 1
+        update_customer_number(customer_file, customer_email, customer_number)
 
 # Collect multiple products, quantities, and prices
 products = []
@@ -90,15 +94,20 @@ if not products:
     exit(1)
 
 invoice_date = input(f"Enter invoice date (default: {datetime.now().strftime('%Y-%m-%d')}): ").strip() or datetime.now().strftime("%Y-%m-%d")
+due_date = (datetime.strptime(invoice_date, "%Y-%m-%d") + timedelta(days=14)).strftime("%Y-%m-%d")
 message = input("Enter additional message: ").strip()
 
 # Read the current reference number and update it
-ref_number = read_reference_number(ref_file)
-new_ref_number = ref_number + 10
-write_reference_number(ref_file, new_ref_number)
-
-# Format the reference number to be 20 digits
-formatted_ref_number = f"{new_ref_number:020}"
+if args.skip_gen_ref_num:
+    formatted_ref_number = input("Enter reference number (4-20 digits): ").strip()
+    if not validate_finnish_reference_number(formatted_ref_number):
+        print("Error: Invalid Finnish reference number.")
+        exit(1)
+else:
+    ref_number = read_reference_number(ref_file)
+    new_ref_number = ref_number + 10
+    write_reference_number(ref_file, new_ref_number)
+    formatted_ref_number = generate_finnish_reference_number(new_ref_number, customer_number)
 
 # Create the directory structure
 base_folder = 'customers'
@@ -112,48 +121,6 @@ if not os.path.exists(date_folder):
 # Define the path to save the PDF
 pdf_output_path = os.path.join(date_folder, f"{formatted_ref_number}.pdf")
 
-# Create PDF class
-class PDF(FPDF):
-    def header(self):
-        self.set_font('DejaVu', 'B', 9)
-        self.cell(0, 10, 'LASKU / INVOICE', 0, new_x=XPos.LEFT, new_y=YPos.NEXT, align='C')
-
-    def add_invoice_details(self, details):
-        self.set_font('DejaVu', '', 9)
-        for line in details:
-            self.cell(0, 5, line, 0, new_x=XPos.LEFT, new_y=YPos.NEXT)
-        self.ln()
-
-    def add_customer_details(self, details):
-        self.set_font('DejaVu', '', 9)
-        for line in details:
-            self.cell(0, 5, line, 0, new_x=XPos.LEFT, new_y=YPos.NEXT, align='R')
-        self.ln()
-
-    def add_table(self, data, col_widths):
-        self.set_font('DejaVu', '', 9)
-        row_height = self.font_size * 1.5
-        for row in data:
-            max_lines = 1
-            wrapped_row = []
-            for i, item in enumerate(row):
-                wrapped_lines = wrap_text(self, str(item), col_widths[i])
-                max_lines = max(max_lines, len(wrapped_lines))
-                wrapped_row.append(wrapped_lines)
-
-            for line in range(max_lines):
-                for i, wrapped_lines in enumerate(wrapped_row):
-                    if line < len(wrapped_lines):
-                        self.multi_cell(
-                            col_widths[i], row_height, wrapped_lines[line],
-                            border=1, new_x=XPos.RIGHT, new_y=YPos.TOP,
-                            max_line_height=self.font_size
-                        )
-                    else:
-                        self.cell(col_widths[i], row_height, "", border=1, new_x=XPos.RIGHT, new_y=YPos.TOP)
-                self.ln(row_height)
-        self.ln()  # Add extra line after the table
-
 # Create instance of PDF
 pdf = PDF()
 
@@ -166,10 +133,28 @@ pdf.add_page()
 
 # Invoice details
 invoice_details = [
+    f"Asiakasnumero / Customer Number: {str(customer_number).zfill(6)}",
     f"Laskun numero / Invoice Number: {invoice_date.replace('-', '')}-001",
     f"Laskun päiväys / Invoice Date: {invoice_date}",
-    "Eräpäivä / Due Date: 14 päivää",
-    "",
+    f"Eräpäivä / Due Date: {due_date}"
+]
+
+pdf.add_invoice_details(invoice_details)
+
+# Customer details
+customer_details = [
+    "Asiakas / Customer:",
+    customer_email,
+    customer_name,
+    customer_street_address,
+    customer_postcode_city,
+    "Finland"
+]
+
+pdf.add_customer_details(customer_details)
+
+# Seller details
+seller_details = [
     "Myyjä / Seller:",
     seller_name,
     seller_address_line1,
@@ -179,16 +164,7 @@ invoice_details = [
     f"ALV-numero / VAT Number: {seller_vat_number}"
 ]
 
-customer_details = [
-    "Asiakas / Customer:",
-    customer_name,
-    customer_street_address,
-    customer_postcode_city,
-    "Finland",
-]
-
-pdf.add_invoice_details(invoice_details)
-pdf.add_customer_details(customer_details)
+pdf.add_seller_details(seller_details)
 
 # Define column widths for the table
 col_widths = [pdf.w / 3.5, pdf.w / 8, pdf.w / 5.5, pdf.w / 5.5]
