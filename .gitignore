@@ -4,3 +4,4 @@ __pycache__/
 *.pyc
 customers/
 reference_number.txt
+customer_number.csv
