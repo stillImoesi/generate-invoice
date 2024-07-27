@@ -104,10 +104,9 @@ if args.skip_gen_ref_num:
         print("Error: Invalid Finnish reference number.")
         exit(1)
 else:
-    ref_number = read_reference_number(ref_file)
-    new_ref_number = ref_number + 10
-    write_reference_number(ref_file, new_ref_number)
-    formatted_ref_number = generate_finnish_reference_number(new_ref_number, customer_number)
+    base_number = read_reference_number(ref_file) + 10
+    write_reference_number(ref_file, base_number)
+    formatted_ref_number = generate_finnish_reference_number(customer_number, base_number)
 
 # Create the directory structure
 base_folder = 'customers'
