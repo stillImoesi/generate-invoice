@@ -41,26 +41,47 @@ parser.add_argument('--skip_gen_cus_num', action='store_true', default=False, he
 parser.add_argument('--skip_gen_ref_num', action='store_true', default=False, help='Skip generating a new reference number.')
 args = parser.parse_args()
 
-# Prompting the user for input
-customer_name = input("Enter customer name: ").strip()
-customer_email = input("Enter customer email: ").strip()
-customer_street_address = input("Enter customer street address: ").strip()
-customer_postcode_city = input("Enter customer postcode and city: ").strip()
-if not customer_name or not customer_email or not customer_street_address or not customer_postcode_city:
-    print("Error: All address fields (customer name, customer email, street address, and postcode/city) are required.")
+# Prompt for customer type
+customer_type = input("Please select customer type:\n1. Corporate customer\n2. Private individual\n").strip()
+
+# Corporate customer details
+if customer_type == "1":
+    company_name = input("Enter company name: ").strip()
+    company_street_address = input("Enter company street address: ").strip()
+    company_postcode = input("Enter company postcode: ").strip()
+    company_city = input("Enter company city: ").strip()
+    vat_number = input("Enter company VAT number: ").strip()
+    reference_name = input("Enter reference name (the person ordering the goods/services): ").strip()
+    if not all([company_name, company_street_address, vat_number, reference_name]):
+        print("Error: All corporate customer fields are required.")
+        exit(1)
+
+# Private individual details
+elif customer_type == "2":
+    # Prompting the user for input
+    customer_name = input("Enter customer name: ").strip()
+    customer_email = input("Enter customer email: ").strip()
+    customer_street_address = input("Enter customer street address: ").strip()
+    customer_postcode_city = input("Enter customer postcode and city: ").strip()
+    if not customer_name or not customer_email or not customer_street_address or not customer_postcode_city:
+        print("Error: All address fields (customer name, customer email, street address, and postcode/city) are required.")
+        exit(1)
+
+else:
+    print("Invalid customer type selected.")
     exit(1)
 
-# Get or generate customer number
+# Get or generate customer number (for both corporate and private customers)
 if args.skip_gen_cus_num:
     customer_number = input("Enter customer number (at least 3 digits): ").strip()
     if not customer_number.isdigit() or len(customer_number) < 3:
         print("Error: Customer number must be at least 3 digits.")
         exit(1)
 else:
-    customer_number = get_customer_number(customer_file, customer_email)
+    customer_number = get_customer_number(customer_file, company_name if customer_type == "1" else customer_email)
     if customer_number is None:
         customer_number = read_last_customer_number(customer_file) + 1
-        update_customer_number(customer_file, customer_email, customer_number)
+        update_customer_number(customer_file, company_name if customer_type == "1" else customer_email, customer_number)
 
 # Collect multiple products, quantities, and prices
 products = []
@@ -84,7 +105,7 @@ while True:
         except ValueError:
             print("Error: Price must be a number. Please try again.")
 
-    price_without_vat = total_price_with_vat / 1.24
+    price_without_vat = total_price_with_vat / 1.255
     vat_amount = total_price_with_vat - price_without_vat
 
     products.append((product, quantity, price_without_vat, vat_amount))
@@ -110,7 +131,7 @@ else:
 
 # Create the directory structure
 base_folder = 'customers'
-customer_folder = os.path.join(base_folder, customer_name)
+customer_folder = os.path.join(base_folder, company_name if customer_type == "1" else customer_name)
 date_folder = os.path.join(customer_folder, invoice_date)
 if not os.path.exists(customer_folder):
     os.makedirs(customer_folder)
@@ -141,14 +162,24 @@ invoice_details = [
 pdf.add_invoice_details(invoice_details)
 
 # Customer details
-customer_details = [
-    "Asiakas / Customer:",
-    customer_email,
-    customer_name,
-    customer_street_address,
-    customer_postcode_city,
-    "Finland"
+if customer_type == "1":
+    customer_details = [
+        company_name,
+        company_street_address,
+        f"{company_postcode} {company_city}",
+        "Finland",
+        f"VAT Number: {vat_number}",
+        f"Reference: {reference_name}"
+    ]
+else:
+    customer_details = [
+        customer_email,
+        customer_name,
+        customer_street_address,
+        customer_postcode_city,
+        "Finland"
 ]
+
 
 pdf.add_customer_details(customer_details)
 
@@ -181,7 +212,7 @@ for product, quantity, price_without_vat, vat_amount in products:
     total_with_vat += (price_without_vat + vat_amount) * quantity
     data.append([product, str(quantity), f"{price_without_vat:.2f} €", f"{(price_without_vat + vat_amount) * quantity:.2f} €"])
 
-data.append(["Alv / VAT (24%)", "", "", f"{total_vat:.2f} €"])
+data.append(["Alv / VAT (25.5%)", "", "", f"{total_vat:.2f} €"])
 data.append(["Yhteensä / Total", "", "", f"{total_with_vat:.2f} €"])
 
 pdf.add_table(data, col_widths)
