@@ -1,5 +1,5 @@
 from fpdf import FPDF, XPos, YPos
-from utils import wrap_text
+from utils.index import wrap_text
 
 class PDF(FPDF):
     def header(self):

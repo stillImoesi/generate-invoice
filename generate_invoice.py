@@ -2,16 +2,18 @@ import os
 import argparse
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
-from utils import (
+from utils.index import (
     read_reference_number,
     write_reference_number,
     get_customer_number,
-    update_customer_number,
     read_last_customer_number,
     generate_finnish_reference_number,
+    display_customers,
+    select_or_create_customer
 )
-from validation import validate_finnish_reference_number
-from create_invoice import PDF
+from utils.update_customer_number import update_customer_number
+from utils.validation import validate_finnish_reference_number
+from utils.create_invoice import PDF
 
 # Load environment variables from .env file
 load_dotenv()
@@ -42,46 +44,152 @@ parser.add_argument('--skip_gen_ref_num', action='store_true', default=False, he
 args = parser.parse_args()
 
 # Prompt for customer type
-customer_type = input("Please select customer type:\n1. Corporate customer\n2. Private individual\n").strip()
+customer_type = input("Please select customer type:\n1. Corporate customer\n0. Private individual\n").strip()
 
-# Corporate customer details
-if customer_type == "1":
-    company_name = input("Enter company name: ").strip()
-    company_street_address = input("Enter company street address: ").strip()
-    company_postcode = input("Enter company postcode: ").strip()
-    company_city = input("Enter company city: ").strip()
-    vat_number = input("Enter company VAT number: ").strip()
-    reference_name = input("Enter reference name (the person ordering the goods/services): ").strip()
-    if not all([company_name, company_street_address, vat_number, reference_name]):
-        print("Error: All corporate customer fields are required.")
-        exit(1)
-
-# Private individual details
-elif customer_type == "2":
-    # Prompting the user for input
-    customer_name = input("Enter customer name: ").strip()
-    customer_email = input("Enter customer email: ").strip()
-    customer_street_address = input("Enter customer street address: ").strip()
-    customer_postcode_city = input("Enter customer postcode and city: ").strip()
-    if not customer_name or not customer_email or not customer_street_address or not customer_postcode_city:
-        print("Error: All address fields (customer name, customer email, street address, and postcode/city) are required.")
-        exit(1)
-
-else:
-    print("Invalid customer type selected.")
+# Ensure valid input
+if customer_type not in ['0', '1']:
+    print("Invalid selection. Please enter 0 for private or 1 for corporate.")
     exit(1)
 
-# Get or generate customer number (for both corporate and private customers)
-if args.skip_gen_cus_num:
-    customer_number = input("Enter customer number (at least 3 digits): ").strip()
-    if not customer_number.isdigit() or len(customer_number) < 3:
-        print("Error: Customer number must be at least 3 digits.")
-        exit(1)
+# Display and select existing customers
+customers = display_customers(customer_file, customer_type)
+selected_customer = select_or_create_customer(customers)
+
+if selected_customer:
+    customer_number = selected_customer[0]
+    customer_type = selected_customer[1]
+    company_name = selected_customer[2]  # This will be used if the customer is corporate
+    vat_number = selected_customer[3]
+    contact_name = selected_customer[4]
+    customer_email = selected_customer[5]
+    customer_street_address = selected_customer[6]
+    customer_postcode = selected_customer[7]
+    customer_city = selected_customer[8]
+    country = selected_customer[9]
+
+    print(f"Selected customer: {customer_number} ({company_name})")
+
+    # Flag to check if any changes are made
+    updated = False
+
+    if customer_type == '1':
+        if not company_name:
+            company_name = input("Enter company name (corporate customer): ").strip()
+            selected_customer[2] = company_name
+            updated = True
+
+        if not vat_number:
+            vat_number = input("Enter VAT number (corporate customer): ").strip()
+            selected_customer[3] = vat_number
+            updated = True
+
+        if not contact_name:
+            contact_name = input("Enter reference name (the person ordering the goods/services): ").strip()
+            selected_customer[4] = contact_name
+            updated = True
+
+# For private individuals
+    else:
+        if not contact_name:
+            contact_name = input("Enter contact name: ").strip()
+            selected_customer[4] = contact_name
+            updated = True
+
+        if not customer_email:
+            customer_email = input("Enter customer email: ").strip()
+            selected_customer[5] = customer_email
+            updated = True
+
+    if not customer_street_address:
+        customer_street_address = input("Enter street address: ").strip()
+        selected_customer[6] = customer_street_address
+        updated = True
+
+    if not customer_postcode:
+        customer_postcode = input("Enter postcode: ").strip()
+        selected_customer[7] = customer_postcode
+        updated = True
+
+    if not customer_city:
+        customer_city = input("Enter city: ").strip()
+        selected_customer[8] = customer_city
+        updated = True
+
+    if not country:
+        country = "Finland"  # Default country
+        selected_customer[9] = country
+        updated = True
+
+    # Only update if changes were made
+    if updated:
+        print(f"Updating customer with the following details: {customer_number}")
+        update_customer_number(
+            customer_file,
+            customer_number,
+            customer_type,
+            contact_name,
+            company_name,
+            vat_number,
+            customer_email,
+            customer_street_address,
+            customer_postcode,
+            customer_city
+        )
+    else:
+        print("No changes detected, no update needed.")
+
 else:
-    customer_number = get_customer_number(customer_file, company_name if customer_type == "1" else customer_email)
-    if customer_number is None:
-        customer_number = read_last_customer_number(customer_file) + 1
-        update_customer_number(customer_file, company_name if customer_type == "1" else customer_email, customer_number)
+    # Prompt for new corporate customer details
+    if customer_type == "1":
+        company_name = input("Enter company name: ").strip()
+        customer_street_address = input("Enter company street address: ").strip()
+        customer_postcode = input("Enter company postcode: ").strip()
+        customer_city = input("Enter company city: ").strip()
+        vat_number = input("Enter company VAT number: ").strip()
+        contact_name = input("Enter reference name (the person ordering the goods/services): ").strip()
+        if not all([company_name, customer_street_address, vat_number, contact_name]):
+            print("Error: All corporate customer fields are required.")
+            exit(1)
+
+    # Private individual details
+    elif customer_type == "0":
+        # Prompt for new private individual customer details
+        customer_name = input("Enter customer name: ").strip()
+        customer_email = input("Enter customer email: ").strip()
+        customer_street_address = input("Enter customer street address: ").strip()
+        customer_postcode = input("Enter customer postcode: ").strip()
+        customer_city = input("Enter customer city: ").strip()
+        if not customer_name or not customer_email or not customer_street_address or not customer_city or not customer_postcode:
+            print("Error: All address fields (customer name, customer email, street address, and postcode/city) are required.")
+            exit(1)
+
+    else:
+        print("Invalid customer type selected.")
+        exit(1)
+
+# Get or generate customer number (for both corporate and private customers)
+    if args.skip_gen_cus_num:
+        customer_number = input("Enter customer number (at least 3 digits): ").strip()
+        if not customer_number.isdigit() or len(customer_number) < 3:
+            print("Error: Customer number must be at least 3 digits.")
+            exit(1)
+    else:
+        customer_number = get_customer_number(customer_file, company_name if customer_type == "1" else customer_email)
+        if customer_number is None:
+            customer_number = read_last_customer_number(customer_file) + 1
+            print(f"Creating a new customer with the following details: {customer_number}")
+            update_customer_number(
+                customer_file,
+                customer_number,
+                customer_type,
+                contact_name,
+                company_name,
+                vat_number,
+                customer_email,
+                customer_street_address,
+                customer_postcode,
+                customer_city
+            )
 
 # Collect multiple products, quantities, and prices
 products = []
@@ -165,18 +273,19 @@ pdf.add_invoice_details(invoice_details)
 if customer_type == "1":
     customer_details = [
         company_name,
-        company_street_address,
-        f"{company_postcode} {company_city}",
+        customer_street_address,
+        f"{customer_postcode} {customer_city}",
         "Finland",
         f"VAT Number: {vat_number}",
-        f"Reference: {reference_name}"
+        f"Reference: {contact_name}"
     ]
 else:
     customer_details = [
         customer_email,
         customer_name,
         customer_street_address,
-        customer_postcode_city,
+        customer_postcode,
+        customer_city,
         "Finland"
 ]
 
