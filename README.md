@@ -1,4 +1,3 @@
-
 # Invoice Generator
 
 This script generates invoices in PDF format for customers, including details such as the seller's information, customer information, products, and prices (including VAT). The invoices are saved in a structured folder format based on the customer name and the date.
@@ -54,6 +53,8 @@ Make sure you have Python 3 installed on your system.
    10
    ```
 
+6. Ensure that a `customer_number.csv` file exists in the root directory or will be generated automatically by the script if not present.
+
 ## Usage
 
 Run the script to generate an invoice:
@@ -62,9 +63,31 @@ Run the script to generate an invoice:
 python index.py
 ```
 
-The script will prompt you to enter the customer details, product details (including quantities), and other relevant information. The generated invoice will be saved in a folder named after the customer and date.
+### Selecting Customer Type
 
-If the `customer_number.csv` file does not exist and the `--skip_gen_cus_num` argument is not used, the code will create and update the `customer_number.csv` file for you.
+The script will prompt you to select whether the customer is a company or a private individual:
+
+1. **Company Invoices**:
+   - You will be prompted to enter the company name, VAT number, reference name (the person ordering the goods/services), and address details if they are missing from the `customer_number.csv`.
+   - The selected or newly created customer’s details will be updated if any changes are made.
+
+2. **Private Individual Invoices**:
+   - You will be prompted to enter the individual’s name, email, and address details if they are missing from the `customer_number.csv`.
+   - The script checks for missing details and prompts for them, ensuring existing records are updated only if necessary.
+
+### Light CRM Functionality
+
+This tool also acts as a light CRM (Customer Relationship Management) system by saving your customer data to a separate CSV file (`customer_number.csv`). This allows you to maintain and update customer information over time, ensuring that future invoices can be created quickly and efficiently without re-entering existing data.
+
+### Collecting Product Details
+
+The script will prompt you to enter product descriptions, quantities (default is 1 if not provided), and prices (including VAT). Prices entered will be automatically adjusted to show product prices without VAT.
+
+### Saving the Invoice
+
+The generated invoice will be saved in a folder structured as follows:
+
+- `customers/<customer_name>/<date>/invoice.pdf`
 
 ## Arguments
 
