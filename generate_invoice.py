@@ -7,12 +7,12 @@ from utils.index import (
     write_reference_number,
     get_customer_number,
     read_last_customer_number,
-    generate_finnish_reference_number,
     display_customers,
     select_or_create_customer
 )
 from utils.update_customer_number import update_customer_number
 from utils.validation import validate_finnish_reference_number
+from utils.gen_ref import generate_finnish_reference_number
 from utils.create_invoice import PDF
 
 # Load environment variables from .env file
@@ -154,12 +154,12 @@ else:
     # Private individual details
     elif customer_type == "0":
         # Prompt for new private individual customer details
-        customer_name = input("Enter customer name: ").strip()
+        contact_name = input("Enter customer name: ").strip()
         customer_email = input("Enter customer email: ").strip()
         customer_street_address = input("Enter customer street address: ").strip()
         customer_postcode = input("Enter customer postcode: ").strip()
         customer_city = input("Enter customer city: ").strip()
-        if not customer_name or not customer_email or not customer_street_address or not customer_city or not customer_postcode:
+        if not contact_name or not customer_email or not customer_street_address or not customer_city or not customer_postcode:
             print("Error: All address fields (customer name, customer email, street address, and postcode/city) are required.")
             exit(1)
 
@@ -239,7 +239,7 @@ else:
 
 # Create the directory structure
 base_folder = 'customers'
-customer_folder = os.path.join(base_folder, company_name if customer_type == "1" else customer_name)
+customer_folder = os.path.join(base_folder, company_name if customer_type == "1" else contact_name)
 date_folder = os.path.join(customer_folder, invoice_date)
 if not os.path.exists(customer_folder):
     os.makedirs(customer_folder)
@@ -282,7 +282,7 @@ if customer_type == "1":
 else:
     customer_details = [
         customer_email,
-        customer_name,
+        contact_name,
         customer_street_address,
         customer_postcode,
         customer_city,

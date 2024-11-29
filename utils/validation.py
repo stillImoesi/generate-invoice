@@ -1,4 +1,4 @@
-from utils.index import calculate_check_digit
+from utils.gen_ref import calculate_check_digit
 
 def validate_finnish_reference_number(reference):
     if len(reference) < 4 or len(reference) > 20 or not reference.isdigit():
