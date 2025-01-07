@@ -162,6 +162,10 @@ else:
         if not contact_name or not customer_email or not customer_street_address or not customer_city or not customer_postcode:
             print("Error: All address fields (customer name, customer email, street address, and postcode/city) are required.")
             exit(1)
+        
+        # Set irrelevant fields to empty for private customers
+        company_name = ""
+        vat_number = ""
 
     else:
         print("Invalid customer type selected.")
