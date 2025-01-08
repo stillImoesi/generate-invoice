@@ -216,11 +216,20 @@ while True:
             break
         except ValueError:
             print("Error: Price must be a number. Please try again.")
+    
+    while True:
+        tax_rate_input = input("Enter VAT rate for the product (default is 25.5%): ").strip()
+        try:
+            tax_rate_percentage = float(tax_rate_input) if tax_rate_input else 25.5
+            break
+        except ValueError:
+            print("Error: Tax rate must be a number. Please try again.")
 
-    price_without_vat = total_price_with_vat / 1.255
+    tax_rate = 1 + (tax_rate_percentage / 100) 
+    price_without_vat = total_price_with_vat / tax_rate
     vat_amount = total_price_with_vat - price_without_vat
 
-    products.append((product, quantity, price_without_vat, vat_amount))
+    products.append((product, quantity, price_without_vat, vat_amount, tax_rate_percentage))
 
 if not products:
     print("Error: At least one product is required.")
@@ -310,23 +319,24 @@ seller_details = [
 pdf.add_seller_details(seller_details)
 
 # Define column widths for the table
-col_widths = [pdf.w / 3.5, pdf.w / 8, pdf.w / 5.5, pdf.w / 5.5]
+col_widths = [pdf.w / 4.5, pdf.w / 9, pdf.w / 9, pdf.w / 5, pdf.w / 5]
 
 # Add table
 data = [
-    ["Tuote / Service", "Määrä / Quantity", "Yksikköhinta / Unit Price", "Hinta / Price"]
+    ["Tuote / Service", "Määrä / Quantity", "Verokanta / Tax (%)", "Yksikköhinta / Unit Price", "Hinta / Price"]
 ]
+
 total_without_vat = 0
 total_vat = 0
 total_with_vat = 0
-for product, quantity, price_without_vat, vat_amount in products:
-    total_without_vat += price_without_vat * quantity
+for product, quantity, price_without_vat, vat_amount, tax_rate in products:
+    # total_without_vat += price_without_vat * quantity
     total_vat += vat_amount * quantity
     total_with_vat += (price_without_vat + vat_amount) * quantity
-    data.append([product, str(quantity), f"{price_without_vat:.2f} €", f"{(price_without_vat + vat_amount) * quantity:.2f} €"])
+    data.append([product, str(quantity), f"{tax_rate:.1f}%", f"{price_without_vat:.2f} €", f"{(price_without_vat + vat_amount) * quantity:.2f} €"])
 
-data.append(["Alv / VAT (25.5%)", "", "", f"{total_vat:.2f} €"])
-data.append(["Yhteensä / Total", "", "", f"{total_with_vat:.2f} €"])
+data.append(["", "", "", f"Alv / VAT", f"{total_vat:.2f} €"])
+data.append(["", "", "", "Yhteensä / Total", f"{total_with_vat:.2f} €"])
 
 pdf.add_table(data, col_widths)
 
