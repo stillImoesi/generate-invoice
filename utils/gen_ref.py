@@ -12,6 +12,6 @@ def generate_finnish_reference_number(customer_number, base_number):
     timestamp_str = datetime.now().strftime("%Y%m%d%H%M%S")  # Current timestamp
     base_number_str = str(base_number).zfill(6)  # Ensure base_number is 6 digits to fit within the 19 digits limit
     reference_base = customer_number_str + timestamp_str + base_number_str
-    reference_base = reference_base[:19]  # Truncate to ensure 19 digits if necessary
-    check_digit = calculate_check_digit(reference_base)
-    return reference_base + check_digit
+    reference_base_truncated = reference_base[:19]  # Truncate to ensure 19 digits if necessary
+    check_digit = calculate_check_digit(reference_base_truncated)
+    return reference_base_truncated + check_digit

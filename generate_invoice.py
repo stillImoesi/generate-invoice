@@ -147,6 +147,7 @@ else:
         customer_city = input("Enter company city: ").strip()
         vat_number = input("Enter company VAT number: ").strip()
         contact_name = input("Enter reference name (the person ordering the goods/services): ").strip()
+        customer_email = input("Enter reference email: ").strip()
         if not all([company_name, customer_street_address, vat_number, contact_name]):
             print("Error: All corporate customer fields are required.")
             exit(1)
